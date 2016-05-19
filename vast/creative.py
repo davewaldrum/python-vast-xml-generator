@@ -16,9 +16,9 @@
 # limitations under the License.
 
 
-from companionAd import CompanionAd
-from icon import Icon
-from trackingEvent import TrackingEvent
+from .companionAd import CompanionAd
+from .icon import Icon
+from .trackingEvent import TrackingEvent
 
 VALID_VIDEO_CLICKS = ['ClickThrough', 'ClickTracking', 'CustomClick']
 
