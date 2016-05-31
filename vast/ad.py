@@ -18,8 +18,8 @@
 from .creative import Creative
 
 
-REQUIRED_INLINE = ['AdSystem', 'AdTitle']
-REQUIRED_WRAPPER = ['AdSystem', 'VASTAdTagURI']
+REQUIRED_INLINE = ['id', 'ad_system', 'ad_title']
+REQUIRED_WRAPPER = ['id', 'ad_system', 'vast_ad_tag_uri']
 
 
 def validateSettings(settings, requireds):
@@ -39,30 +39,33 @@ def validateWrapperSettings(settings):
 
 class Ad(object):
     def __init__(self, settings={}):
+        print ("Settings")
+        print (settings)
         self.errors = []
         self.surveys = []
         self.impressions = []
         self.creatives = []
+        self.extensions = []
 
         if settings["structure"].lower() == 'wrapper':
             validateWrapperSettings(settings)
-            self.VASTAdTagURI = settings["VASTAdTagURI"]
+            self.vast_ad_tag_uri = settings["vast_ad_tag_uri"]
+            self.ad_title = settings.get("ad_title", None)
         else:
             validateInLineSettings(settings)
+            self.ad_title = settings["ad_title"]
 
         self.id = settings["id"]
-        self.sequence = settings.get("sequence", None)
         self.structure = settings["structure"]
-        self.AdSystem = settings["AdSystem"]
-        self.AdTitle = settings["AdTitle"]
+        self.ad_system = settings["ad_system"]
 
         # optional elements
-        self.Error = settings.get("Error", None)
-        self.Description = settings.get("Description", None)
-        self.Advertiser = settings.get("Advertiser", None)
+        self.sequence = settings.get("sequence", None)
+        self.error = settings.get("error", None)
+        self.description = settings.get("description", None)
+        self.avertiser = settings.get("advertiser", None)
 
-        self.Pricing = settings.get("Pricing", None)
-        self.Extensions = settings.get("Extensions", None)
+        self.pricing = settings.get("pricing", None)
 
     def attachSurvey(self, settings):
         survey={"url": settings.url}
@@ -74,8 +77,12 @@ class Ad(object):
         self.impressions.append(settings)
         return self
 
-    def attachCreative(self, _type, options):
-        creative = Creative(_type, options)
+    def attachCreative(self, creative_type, options):
+        creative = Creative(creative_type, options)
         self.creatives.append(creative)
         return creative
+
+    def attachExtension(self, extension_type, xml):
+        self.extensions.append({"type": extension_type, "xml": xml})
+        return self
 
