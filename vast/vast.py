@@ -81,17 +81,16 @@ class VAST(object):
                 videoClicksElem = etree.SubElement(linearElem, "VideoClicks")   
 
                 for click in creative.videoClicks:
-                    clickOptions = {};
+                    if ad.structure.lower() != 'wrapper' or click['type'] != 'ClickThrough':
+                        clickOptions = {};
 
-                    print (click)
+                        if click['id']:
+                            clickOptions['id'] = str(click['id']);
 
-                    if click['id']:
-                        clickOptions['id'] = str(click['id']);
+                        clickElem = etree.SubElement(videoClicksElem, click['type'], clickOptions)
+                        clickElem.text = str(self.cdata(click['url']))
 
-                    clickElem = etree.SubElement(videoClicksElem, click['type'], clickOptions)
-                    clickElem.text = str(self.cdata(click['url']))
-
-            if creative.mediaFiles:
+            if creative.mediaFiles and ad.structure.lower() != 'wrapper':
                 mediaFilesElem = etree.SubElement(linearElem, "MediaFiles")
 
                 for media in creative.mediaFiles:
@@ -194,15 +193,21 @@ class VAST(object):
             if ad.structure.lower() == 'wrapper':
                 wrapperElem = etree.SubElement(adElem, "Wrapper")
 
+                adSystemElem = etree.SubElement(wrapperElem, "AdSystem")
+                adSystemElem.text = str(ad.ad_system)
 
-                response.AdSystem(ad.AdSystem["name"], **{"version": ad.AdSystem["version"]})
-                response.VASTAdTagURI(self.cdata(ad.VASTAdTagURI))
-                if ad.Error:
-                    response.Error(self.cdata(ad.Error))
+                vastAdTagElem = etree.SubElement(wrapperElem, "VASTAdTagURI")
+                vastAdTagElem.text = str(self.cdata(ad.vast_ad_tag_uri))
+
+                if ad.error:
+                    adErrorElem = etree.SubElement(wrapperElem, "Error")
+                    adErrorElem.text = str(self.cdata(ad.error))
+
                 for impression in ad.impressions:
-                    if track:
-                        response.Impression(self.cdata(impression["url"]))
-                self.add_creatives(response, ad, track)
+                    impressionElem = etree.SubElement(wrapperElem, "Impression")
+                    impressionElem.text = str(self.cdata(impression["url"]))
+
+                self.add_creatives(wrapperElem, ad)
             else:
                 inlineElem = etree.SubElement(adElem, "InLine")
 
