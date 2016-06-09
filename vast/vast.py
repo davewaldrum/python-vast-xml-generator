@@ -97,10 +97,11 @@ class VAST(object):
                     mediaFileElem = etree.SubElement(mediaFilesElem, "MediaFile", media["attributes"])
                     mediaFileElem.text = str(self.cdata(media["url"]))
 
-            '''
             if len(creative.icons) > 0:
                 iconsElem = etree.SubElement(linearElem, "Icons")
                 for icon in creative.icons:
+                    iconElem = etree.SubElement(iconsElem, "Icon", icon.attributes)
+                    
                     with response.Icon(**icon.attributes):
                         attributes = {}
                         if "creativeType" in icon.resource:
@@ -115,7 +116,6 @@ class VAST(object):
                                     response.IconClickTraking(icon.click)
                         if icon.view:
                             response.IconViewTracking(icon.view)
-            '''
 
         '''
         if len(nonLinearCreatives) > 0:
@@ -243,51 +243,3 @@ class VAST(object):
                         extensionElem.append(etree.fromstring(extension['xml']))
 
         return self.formatXmlResponse(root)
-'''
-        response = XMLBuilder('VAST', version=self.version)
-        if len(self.ads) == 0 and self.vast_error_uri:
-            response.Error(self.cdata(self.vast_error_uri))
-            return response
-        for ad in self.ads:
-            adOptions = {"id": ad.id}
-            if ad.sequence:
-                adOptions["sequence"] = str(ad.sequence)
-
-            with response.Ad(**adOptions):
-                if ad.structure.lower() == 'wrapper':
-                    with response.Wrapper:
-                        response.AdSystem(ad.AdSystem["name"], **{"version": ad.AdSystem["version"]})
-                        response.VASTAdTagURI(self.cdata(ad.VASTAdTagURI))
-                        if ad.Error:
-                            response.Error(self.cdata(ad.Error))
-                        for impression in ad.impressions:
-                            if track:
-                                response.Impression(self.cdata(impression["url"]))
-                        self.add_creatives(response, ad, track)
-                else:
-                    with response.InLine:
-                        response.AdSystem(ad.AdSystem["name"], **{"version": ad.AdSystem["version"]})
-                        response.AdTitle(self.cdata(ad.AdTitle))
-                        response.Description(self.cdata(ad.Description or ''))
-
-                        with response.Survey:
-                            for survey in ad.surveys:
-                                attributes = {}
-                                if survey.type:
-                                    attributes["type"] = survey.type
-                                response.Survey(self.cdata(survey.url), **attributes)
-
-                        if ad.Error:
-                            response.Error(self.cdata(ad.Error))
-
-                        for impression in ad.impressions:
-                            if track:
-                                response.Impression(self.cdata(impression["url"]))
-
-                        self.add_creatives(response, ad, track)
-
-                        if ad.Extensions:
-                            for extension in ad.Extensions:
-                                response.Extension(extension)
-        return response
-'''

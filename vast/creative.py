@@ -69,7 +69,6 @@ class Creative(object):
 
     def attachMediaFile(self, url, settings={}):
         keys = settings.keys()
-        print (keys)
         for required in REQUIRED_MEDIA_ATTRIBUTES:
             if required not in keys:
                 raise Exception("MediaFile missing required settings: {required}".format(required=required))

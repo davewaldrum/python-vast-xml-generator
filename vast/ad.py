@@ -39,8 +39,6 @@ def validateWrapperSettings(settings):
 
 class Ad(object):
     def __init__(self, settings={}):
-        print ("Settings")
-        print (settings)
         self.errors = []
         self.surveys = []
         self.impressions = []
