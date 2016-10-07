@@ -63,7 +63,7 @@ class VAST(object):
                     adParametersOptions['xmlEncoded'] = str(creative.ad_parameters.xmlEncoded)
 
                 adParametersElem = etree.SubElement(linearElem, "AdParameters", adParametersOptions)
-                adParametersElem.text = str(self.cdata(creative.AdParameters.data))
+                adParametersElem.text = etree.CDATA(creative.AdParameters.data)
 
             if creative.trackingEvents:
                 trackingEventsElem = etree.SubElement(linearElem, "TrackingEvents")   
@@ -75,7 +75,7 @@ class VAST(object):
                         trackingEventOptions["offset"] = str(event.offset)
 
                     trackingEventElem = etree.SubElement(trackingEventsElem, "Tracking", trackingEventOptions)
-                    trackingEventElem.text = str(self.cdata(event.url))
+                    trackingEventElem.text = etree.CDATA(event.url)
 
             if creative.videoClicks:
                 videoClicksElem = etree.SubElement(linearElem, "VideoClicks")   
@@ -88,14 +88,14 @@ class VAST(object):
                             clickOptions['id'] = str(click['id']);
 
                         clickElem = etree.SubElement(videoClicksElem, click['type'], clickOptions)
-                        clickElem.text = str(self.cdata(click['url']))
+                        clickElem.text = etree.CDATA(click['url'])
 
             if creative.mediaFiles and ad.structure.lower() != 'wrapper':
                 mediaFilesElem = etree.SubElement(linearElem, "MediaFiles")
 
                 for media in creative.mediaFiles:
                     mediaFileElem = etree.SubElement(mediaFilesElem, "MediaFile", media["attributes"])
-                    mediaFileElem.text = str(self.cdata(media["url"]))
+                    mediaFileElem.text = etree.CDATA(media["url"])
 
             if len(creative.icons) > 0:
                 iconsElem = etree.SubElement(linearElem, "Icons")
@@ -179,7 +179,7 @@ class VAST(object):
         root.set("version", str(self.version))
 
         if len(self.ads) == 0 and self.vast_error_uri:
-            etree.SubElement(root, "Error", self.cdata(self.vast_error_uri))
+            etree.SubElement(root, "Error", etree.CDATA(self.vast_error_uri))
             return self.formatXmlResponse(root)
 
         for ad in self.ads:
@@ -197,15 +197,15 @@ class VAST(object):
                 adSystemElem.text = str(ad.ad_system)
 
                 vastAdTagElem = etree.SubElement(wrapperElem, "VASTAdTagURI")
-                vastAdTagElem.text = str(self.cdata(ad.vast_ad_tag_uri))
+                vastAdTagElem.text = etree.CDATA(ad.vast_ad_tag_uri)
 
                 if ad.error:
                     adErrorElem = etree.SubElement(wrapperElem, "Error")
-                    adErrorElem.text = str(self.cdata(ad.error))
+                    adErrorElem.text = etree.CDATA(ad.error)
 
                 for impression in ad.impressions:
                     impressionElem = etree.SubElement(wrapperElem, "Impression")
-                    impressionElem.text = str(self.cdata(impression["url"]))
+                    impressionElem.text = etree.CDATA(impression["url"])
 
                 self.add_creatives(wrapperElem, ad)
             else:
@@ -215,19 +215,19 @@ class VAST(object):
                 adSystemElem.text = str(ad.ad_system)
 
                 adTitleElem = etree.SubElement(inlineElem, "AdTitle")
-                adTitleElem.text = str(self.cdata(ad.ad_title))
+                adTitleElem.text = etree.CDATA(ad.ad_title)
 
                 if ad.description:
                     adDescriptionElem = etree.SubElement(inlineElem, "Description")
-                    adDescriptionElem.text = str(self.cdata(ad.description))
+                    adDescriptionElem.text = etree.CDATA(ad.description)
 
                 if ad.error:
                     adErrorElem = etree.SubElement(inlineElem, "Error")
-                    adErrorElem.text = str(self.cdata(ad.error))
+                    adErrorElem.text = etree.CDATA(ad.error)
 
                 for impression in ad.impressions:
                     impressionElem = etree.SubElement(inlineElem, "Impression")
-                    impressionElem.text = str(self.cdata(impression["url"]))
+                    impressionElem.text = etree.CDATA(impression["url"])
 
                 self.add_creatives(inlineElem, ad)
 
