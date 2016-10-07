@@ -16,17 +16,22 @@
 # limitations under the License.
 
 
-from companionAd import CompanionAd
-from icon import Icon
-from trackingEvent import TrackingEvent
+from .companionAd import CompanionAd
+from .icon import Icon
+from .trackingEvent import TrackingEvent
 
 VALID_VIDEO_CLICKS = ['ClickThrough', 'ClickTracking', 'CustomClick']
+VALID_CREATIVE_TYPES = ['Linear', 'NonLinear', 'CompanionAds']
+REQUIRED_MEDIA_ATTRIBUTES = ['type', 'width', 'height', 'delivery']
 
 
 class Creative(object):
-    def __init__(self, _type, settings=None):
+    def __init__(self, creative_type, settings=None):
+        if creative_type not in VALID_CREATIVE_TYPES:
+            raise Exception('The supplied creative type is not a valid VAST creative type.')
+
         settings = {} if settings is None else settings
-        self.type = _type
+        self.type = creative_type
         self.mediaFiles = []
         self.trackingEvents = []
         self.videoClicks = []
@@ -34,19 +39,17 @@ class Creative(object):
         self.clicks = []
         self.resources = []
         self.icons = []
-        self.AdParameters = settings.get("AdParameters", None)
-        self._adParameters = None
+        self.ad_parameters = settings.get("adParameters", None)
         self.attributes = {}
-        self.duration = settings.get("Duration", None)
+        self.duration = settings.get("duration", None)
         self.skipoffset = settings.get("skipoffset", None)
         self.nonLinearClickEvent = None
 
-        if _type == "Linear" and self.duration is None:
+        if creative_type == "Linear" and self.duration is None:
             raise Exception('A Duration is required for all creatives. Consider defaulting to "00:00:00"')
 
         if "id" in settings:
             self.attributes["id"] = settings["id"]
-
         if "width" in settings:
             self.attributes["width"] = settings["width"]
         if "height" in settings:
@@ -65,16 +68,20 @@ class Creative(object):
             self.attributes["apiFramework"] = settings["apiFramework"]
 
     def attachMediaFile(self, url, settings={}):
+        keys = settings.keys()
+        for required in REQUIRED_MEDIA_ATTRIBUTES:
+            if required not in keys:
+                raise Exception("MediaFile missing required settings: {required}".format(required=required))
+
         media_file = {"attributes": {}}
         media_file["url"] = url
-        media_file["attributes"]["type"] = settings.get("type", 'video/mp4')
-        media_file["attributes"]["width"] = settings.get("width",'640')
-        media_file["attributes"]["height"] = settings.get("height", '360')
-        media_file["attributes"]["delivery"]= settings.get("delivery",  'progressive')
-        if "id" not in settings:
-            raise Exception('an `id` is required for all media files')
+        media_file["attributes"]["type"] = settings.get("type")
+        media_file["attributes"]["width"] = settings.get("width")
+        media_file["attributes"]["height"] = settings.get("height")
+        media_file["attributes"]["delivery"]= settings.get("delivery")
 
-        media_file["attributes"]["id"] = settings["id"]
+        if "id" in settings:
+            media_file["attributes"]["id"] = settings["id"]
         if "bitrate" in settings:
             media_file["attributes"]["bitrate"] = settings["bitrate"]
         if "minBitrate" in settings:
@@ -93,32 +100,39 @@ class Creative(object):
         self.mediaFiles.append(media_file)
         return self
 
-    def attachTrackingEvent(self, _type, url, offset=None):
-        self.trackingEvents.append(TrackingEvent(_type, url, offset))
+    def attachTrackingEvent(self, event_type, url, offset=None):
+        self.trackingEvents.append(TrackingEvent(event_type, url, offset))
         return self
 
-    def attachVideoClick(self, _type, url, _id=''):
-        if _type not in VALID_VIDEO_CLICKS:
+    def attachVideoClick(self, click_type, url, click_id=''):
+        if click_type not in VALID_VIDEO_CLICKS:
             raise Exception('The supplied VideoClick `type` is not a valid VAST VideoClick type.')
-        self.videoClicks.append({"type": _type, "url": url, "id": _id})
+
+        self.videoClicks.append({"type": click_type, "url": url, "id": click_id})
+
         return self
 
     def attachClickThrough(self, url):
         self.clickThroughs.append(url)
         return self
 
-    def attachClick(self, uri, _type=None):
+    def attachClick(self, uri, click_type=None):
         if isinstance(uri, basestring):
-            _type = 'NonLinearClickThrough'
-        self.clicks = [{"type": _type, "uri": uri}]
+            click_type = 'NonLinearClickThrough'
+
+        self.clicks = [{"type": click_type, "uri": uri}]
+
         return self
 
-    def attachResource(self, _type, uri, creative_type=None):
-        resource = {"type": _type, "uri": uri}
-        if _type == 'HTMLResource':
+    def attachResource(self, resource_type, uri, creative_type=None):
+        resource = {"type": resource_type, "uri": uri}
+        
+        if resource_type == 'HTMLResource':
             resource["html"] = uri
+
         if creative_type is not None:
             resource["creativeType"] = creative_type
+
         self.resources.append(resource)
         return self
 
@@ -128,7 +142,7 @@ class Creative(object):
         return icon
 
     def adParameters(self, data, xml_encoded):
-        self._adParameters = {"data": data, "xmlEncoded": xml_encoded}
+        self.ad_parameters = {"data": data, "xmlEncoded": xml_encoded}
         return self
 
     def attachNonLinearClickTracking(self, url):

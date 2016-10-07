@@ -15,171 +15,231 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ad import Ad
-from xmlbuilder import XMLBuilder
+from .ad import Ad
+from xml.etree import ElementTree as et
+from lxml import etree
 
 
 class VAST(object):
     def __init__(self, settings={}):
         self.ads = []
         self.version = settings.get("version", "3.0")
-        self.VASTErrorURI = settings.get("VASTErrorURI", None)
+        self.vast_error_uri = settings.get("vast_error_uri", None)
 
-    def attachAd(self, settings):
+    def attachAd(self, ad):
+        self.ads.append(ad)
+        return ad
+
+    def createAd(self, settings):
         ad = Ad(settings)
         self.ads.append(ad)
         return ad
 
     def cdata(self, param):
-        return param
-        #return """<![CDATA[
-        #{param}
-        #]]>""".format(param=param)
-        #
+        return """<![CDATA[{param}]]>""".format(param=param)
 
-    def add_creatives(self, response, ad, track):
+    def add_creatives(self, elem, ad):
         linearCreatives = [c for c in ad.creatives if c.type == "Linear"]
         nonLinearCreatives = [c for c in ad.creatives if c.type == "NonLinear"]
         companionAdCreatives = [c for c in ad.creatives if c.type == "CompanionAd"]
-        with response.Creatives:
-            for creative in linearCreatives:
-                creativeOpts = {}
+
+        creativesElem = etree.SubElement(elem, "Creatives")
+
+        for creative in linearCreatives:
+            creativeElem = etree.SubElement(creativesElem, "Creative")
+
+            linearOptions = {}
+            if creative.skipoffset:
+                linearOptions['skipoffset'] = str(creative.skipoffset)
+
+            linearElem = etree.SubElement(creativeElem, "Linear", linearOptions)
+
+            durationElem = etree.SubElement(linearElem, "Duration")
+            durationElem.text = str(creative.duration)
+
+            if creative.ad_parameters:
+                adParametersOptions = {}
+                if creative.ad_parameters.xmlEncoded:
+                    adParametersOptions['xmlEncoded'] = str(creative.ad_parameters.xmlEncoded)
+
+                adParametersElem = etree.SubElement(linearElem, "AdParameters", adParametersOptions)
+                adParametersElem.text = etree.CDATA(creative.AdParameters.data)
+
+            if creative.trackingEvents:
+                trackingEventsElem = etree.SubElement(linearElem, "TrackingEvents")   
+
+                for event in creative.trackingEvents:
+                    trackingEventOptions = {"event": str(event.event)}
+                    
+                    if event.offset:
+                        trackingEventOptions["offset"] = str(event.offset)
+
+                    trackingEventElem = etree.SubElement(trackingEventsElem, "Tracking", trackingEventOptions)
+                    trackingEventElem.text = etree.CDATA(event.url)
+
+            if creative.videoClicks:
+                videoClicksElem = etree.SubElement(linearElem, "VideoClicks")   
+
+                for click in creative.videoClicks:
+                    if ad.structure.lower() != 'wrapper' or click['type'] != 'ClickThrough':
+                        clickOptions = {};
+
+                        if click['id']:
+                            clickOptions['id'] = str(click['id']);
+
+                        clickElem = etree.SubElement(videoClicksElem, click['type'], clickOptions)
+                        clickElem.text = etree.CDATA(click['url'])
+
+            if creative.mediaFiles and ad.structure.lower() != 'wrapper':
+                mediaFilesElem = etree.SubElement(linearElem, "MediaFiles")
+
+                for media in creative.mediaFiles:
+                    mediaFileElem = etree.SubElement(mediaFilesElem, "MediaFile", media["attributes"])
+                    mediaFileElem.text = etree.CDATA(media["url"])
+
+            if len(creative.icons) > 0:
+                iconsElem = etree.SubElement(linearElem, "Icons")
+                for icon in creative.icons:
+                    iconElem = etree.SubElement(iconsElem, "Icon", icon.attributes)
+                    
+                    with response.Icon(**icon.attributes):
+                        attributes = {}
+                        if "creativeType" in icon.resource:
+                            attributes["creativeType"] = icon.resource["creativeType"]
+                        attr = getattr(response, icon.resource["type"])
+                        attr(icon.resource["uri"], **attributes)
+                        if icon.click or icon.clickThrough:
+                            with response.IconClicks:
+                                if icon.clickThrough:
+                                    response.IconClickThrough(icon.clickThrough)
+                                if icon.click:
+                                    response.IconClickTraking(icon.click)
+                        if icon.view:
+                            response.IconViewTracking(icon.view)
+
+        '''
+        if len(nonLinearCreatives) > 0:
+            for creative in nonLinearCreatives:
                 with response.Creative:
-                    if creative.skipoffset:
-                        creativeOpts["skipoffset"] = creative.skipoffset
-                    with response.Linear(**creativeOpts):
-                        if len(creative.icons) > 0:
-                            with response.Icons:
-                                for icon in creative.icons:
-                                    with response.Icon(**icon.attributes):
-                                        attributes = {}
-                                        if "creativeType" in icon.resource:
-                                            attributes["creativeType"] = icon.resource["creativeType"]
-                                        attr = getattr(response, icon.resource["type"])
-                                        attr(icon.resource["uri"], **attributes)
-                                        if icon.click or icon.clickThrough:
-                                            with response.IconClicks:
-                                                if icon.clickThrough:
-                                                    response.IconClickThrough(icon.clickThrough)
-                                                if icon.click:
-                                                    response.IconClickTraking(icon.click)
-                                        if icon.view:
-                                            response.IconViewTracking(icon.view)
-                        response.Duration(creative.duration)
-                        with response.TrackingEvents:
+                    with response.NonLinearAds:
+                        with response.NonLinear(**creative.attributes):
+                            for resource in creative.resources:
+                                attrs = {}
+                                if "creativeType" in resource:
+                                    attrs["creativeType"] = resource["creativeType"]
+                                element = getattr(response, resource["type"])
+                                element(resource["uri"], **attrs)
+
+                            for click in creative.clicks:
+                                element = getattr(response, click["type"])
+                                element(click["uri"])
+
+                            if creative.AdParameters:
+                                response.AdParameters(creative.AdParameters["data"], **{
+                                    "xmlEncoded": creative.AdParameters["xmlEncoded"]
+                                })
+                            if creative.nonLinearClickEvent:
+                                response.NonLinearClickTracking(creative.nonLinearClickEvent)
+
+        if len(companionAdCreatives) > 0:
+            with response.CompanionAds:
+                for creative in companionAdCreatives:
+                    with response.Companion(**creative.attributes):
+                        for resource in creative.resources:
+                            attrs = {}
+                            element = getattr(response, resource["type"])
+                            if "creativeType" in resource:
+                                attrs["creativeType"] = resource["creativeType"]
+                            element(resource["uri"], **attrs)
+                            if "adParameters" in resource:
+                                response.AdParameters(resource["adParameters"]["data"], **{
+                                    "xmlEncoded": resource["adParameters"]["xmlEncoded"]
+                                })
+                        with response.TrakingEvents:
                             for event in creative.trackingEvents:
                                 if track:
                                     attrs = {"event": event.event}
                                     if event.offset:
                                         attrs["offset"] = event.offset
                                     response.Tracking(event.url, **attrs)
-                        if creative.AdParameters:
-                            response.AddParameters(creative.AdParameters)
-                        with response.VideoClicks:
-                            for click in creative.videoClicks:
-                                attr = getattr(response, click["type"])
-                                attr(click["url"], **{"id": click.get("id", "")})
 
-                        with response.MediaFiles:
-                            for media in creative.mediaFiles:
-                                response.MediaFile(media["url"], **media["attributes"])
+                        for click in creative.clickThroughs:
+                            response.CompanionClickThrough(click)
 
-            if len(nonLinearCreatives) > 0:
-                for creative in nonLinearCreatives:
-                    with response.Creative:
-                        with response.NonLinearAds:
-                            with response.NonLinear(**creative.attributes):
-                                for resource in creative.resources:
-                                    attrs = {}
-                                    if "creativeType" in resource:
-                                        attrs["creativeType"] = resource["creativeType"]
-                                    element = getattr(response, resource["type"])
-                                    element(resource["uri"], **attrs)
+                        if creative.nonLinearClickEvent:
+                            response.CompanionClickTracking(creative.nonLinearClickEvent)
+        '''
 
-                                for click in creative.clicks:
-                                    element = getattr(response, click["type"])
-                                    element(click["uri"])
-
-                                if creative.AdParameters:
-                                    response.AdParameters(creative.AdParameters["data"], **{
-                                        "xmlEncoded": creative.AdParameters["xmlEncoded"]
-                                    })
-                                if creative.nonLinearClickEvent:
-                                    response.NonLinearClickTracking(creative.nonLinearClickEvent)
-
-            if len(companionAdCreatives) > 0:
-                with response.CompanionAds:
-                    for creative in companionAdCreatives:
-                        with response.Companion(**creative.attributes):
-                            for resource in creative.resources:
-                                attrs = {}
-                                element = getattr(response, resource["type"])
-                                if "creativeType" in resource:
-                                    attrs["creativeType"] = resource["creativeType"]
-                                element(resource["uri"], **attrs)
-                                if "adParameters" in resource:
-                                    response.AdParameters(resource["adParameters"]["data"], **{
-                                        "xmlEncoded": resource["adParameters"]["xmlEncoded"]
-                                    })
-                            with response.TrakingEvents:
-                                for event in creative.trackingEvents:
-                                    if track:
-                                        attrs = {"event": event.event}
-                                        if event.offset:
-                                            attrs["offset"] = event.offset
-                                        response.Tracking(event.url, **attrs)
-
-                            for click in creative.clickThroughs:
-                                response.CompanionClickThrough(click)
-
-                            if creative.nonLinearClickEvent:
-                                response.CompanionClickTracking(creative.nonLinearClickEvent)
+    def formatXmlResponse(self, response):
+        response = etree.tostring(response, pretty_print=True, encoding="UTF-8")
+        return response.decode("utf-8")
 
     def xml(self, options={}):
-        track = True if options.get("track", True)  else options.get("track")
-        response = XMLBuilder('VAST', version=self.version)
-        if len(self.ads) == 0 and self.VASTErrorURI:
-            response.Error(self.cdata(self.VASTErrorURI))
-            return response
+        root = etree.Element('VAST')
+        root.set("version", str(self.version))
+
+        if len(self.ads) == 0 and self.vast_error_uri:
+            etree.SubElement(root, "Error", etree.CDATA(self.vast_error_uri))
+            return self.formatXmlResponse(root)
+
         for ad in self.ads:
-            adOptions = {"id": ad.id}
+            adOptions = { 'id': str(ad.id) }
+
             if ad.sequence:
-                adOptions["sequence"] = str(ad.sequence)
+                adOptions['sequence'] = str(ad.sequence)
 
-            with response.Ad(**adOptions):
-                if ad.structure.lower() == 'wrapper':
-                    with response.Wrapper:
-                        response.AdSystem(ad.AdSystem["name"], **{"version": ad.AdSystem["version"]})
-                        response.VASTAdTagURI(self.cdata(ad.VASTAdTagURI))
-                        if ad.Error:
-                            response.Error(self.cdata(ad.Error))
-                        for impression in ad.impressions:
-                            if track:
-                                response.Impression(self.cdata(impression["url"]))
-                        self.add_creatives(response, ad, track)
-                else:
-                    with response.InLine:
-                        response.AdSystem(ad.AdSystem["name"], **{"version": ad.AdSystem["version"]})
-                        response.AdTitle(self.cdata(ad.AdTitle))
-                        response.Description(self.cdata(ad.Description or ''))
+            adElem = etree.SubElement(root, "Ad", adOptions)
 
-                        with response.Survey:
-                            for survey in ad.surveys:
-                                attributes = {}
-                                if survey.type:
-                                    attributes["type"] = survey.type
-                                response.Survey(self.cdata(survey.url), **attributes)
+            if ad.structure.lower() == 'wrapper':
+                wrapperElem = etree.SubElement(adElem, "Wrapper")
 
-                        if ad.Error:
-                            response.Error(self.cdata(ad.Error))
+                adSystemElem = etree.SubElement(wrapperElem, "AdSystem")
+                adSystemElem.text = str(ad.ad_system)
 
-                        for impression in ad.impressions:
-                            if track:
-                                response.Impression(self.cdata(impression["url"]))
+                vastAdTagElem = etree.SubElement(wrapperElem, "VASTAdTagURI")
+                vastAdTagElem.text = etree.CDATA(ad.vast_ad_tag_uri)
 
-                        self.add_creatives(response, ad, track)
+                if ad.error:
+                    adErrorElem = etree.SubElement(wrapperElem, "Error")
+                    adErrorElem.text = etree.CDATA(ad.error)
 
-                        if ad.Extensions:
-                            for extension in ad.Extensions:
-                                response.Extension(extension)
-        return response
+                for impression in ad.impressions:
+                    impressionElem = etree.SubElement(wrapperElem, "Impression")
+                    impressionElem.text = etree.CDATA(impression["url"])
+
+                self.add_creatives(wrapperElem, ad)
+            else:
+                inlineElem = etree.SubElement(adElem, "InLine")
+
+                adSystemElem = etree.SubElement(inlineElem, "AdSystem")
+                adSystemElem.text = str(ad.ad_system)
+
+                adTitleElem = etree.SubElement(inlineElem, "AdTitle")
+                adTitleElem.text = etree.CDATA(ad.ad_title)
+
+                if ad.description:
+                    adDescriptionElem = etree.SubElement(inlineElem, "Description")
+                    adDescriptionElem.text = etree.CDATA(ad.description)
+
+                if ad.error:
+                    adErrorElem = etree.SubElement(inlineElem, "Error")
+                    adErrorElem.text = etree.CDATA(ad.error)
+
+                for impression in ad.impressions:
+                    impressionElem = etree.SubElement(inlineElem, "Impression")
+                    impressionElem.text = etree.CDATA(impression["url"])
+
+                self.add_creatives(inlineElem, ad)
+
+                if ad.extensions:
+                    extensionsElem = etree.SubElement(inlineElem, "Extensions")
+
+                    for extension in ad.extensions:
+                        extensionElem = etree.SubElement(inlineElem, "Extension")
+
+                        if (extension['type']):
+                            extensionElem.set("type", extension['type']);
+
+                        extensionElem.append(etree.fromstring(extension['xml']))
+
+        return self.formatXmlResponse(root)

@@ -26,5 +26,8 @@ setup(
     license='Apache',
     author='Timu Eren',
     author_email='selamtux@gmail.com',
-    description="Easy way to generate vast (3.0) xml"
+    description="Easy way to generate vast (3.0) xml",
+    install_requires=[
+    	'lxml'
+    ]
 )
